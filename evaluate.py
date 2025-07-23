@@ -1,3 +1,7 @@
+import warnings
+warnings.filterwarnings('ignore')
+import sys
+sys.path.append('/kaggle/working/grad_proj')
 from argparse import ArgumentParser
 from PIL import Image
 import torch
@@ -10,7 +14,7 @@ import matplotlib
 from matplotlib import pyplot as plt
 import pathlib
 import datetime
-
+from lightning.pytorch.callbacks import ModelCheckpoint
 from stp3.datas.NuscenesData import FuturePredictionDataset
 from stp3.trainer import TrainingModule
 from stp3.metrics import IntersectionOverUnion, PanopticMetric, PlanningMetric
@@ -20,8 +24,12 @@ from stp3.utils.visualisation import make_contour
 
 def mk_save_dir():
     now = datetime.datetime.now()
-    string = '_'.join(map(lambda x: '%02d' % x, (now.month, now.day, now.hour, now.minute, now.second)))
-    save_path = pathlib.Path('imgs') / string
+    string = "_".join(
+        map(
+            lambda x: "%02d" % x, (now.month, now.day, now.hour, now.minute, now.second)
+        )
+    )
+    save_path = pathlib.Path("imgs") / string
     save_path.mkdir(parents=True, exist_ok=False)
     return save_path
 
@@ -37,7 +45,7 @@ def eval(checkpoint_path, dataroot):
     model = trainer.model
 
     cfg = model.cfg
-    cfg.GPUS = "[0]"
+    cfg.GPUS = "[0,1]"
     cfg.BATCHSIZE = 1
     cfg.LIFT.GT_DEPTH = False
     cfg.DATASET.DATAROOT = dataroot
@@ -168,60 +176,71 @@ def eval(checkpoint_path, dataroot):
     for key, value in results.items():
         print(f'{key} : {value.item()}')
 
+
 def save(output, labels, batch, n_present, frame, save_path):
-    hdmap = output['hdmap'].detach()
-    segmentation = output['segmentation'][:, n_present - 1].detach()
-    pedestrian = output['pedestrian'][:, n_present - 1].detach()
-    gt_trajs = labels['gt_trajectory']
-    images = batch['image']
+    hdmap = output["hdmap"].detach()
+    segmentation = output["segmentation"][:, n_present - 1].detach()
+    pedestrian = output["pedestrian"][:, n_present - 1].detach()
+    gt_trajs = labels["gt_trajectory"]
+    images = batch["image"]
 
     denormalise_img = torchvision.transforms.Compose(
-        (NormalizeInverse(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-         torchvision.transforms.ToPILImage(),)
+        (
+            NormalizeInverse(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            torchvision.transforms.ToPILImage(),
+        )
     )
 
     val_w = 2.99
-    val_h = 2.99 * (224. / 480.)
-    plt.figure(1, figsize=(4*val_w,2*val_h))
-    width_ratios = (val_w,val_w,val_w,val_w)
+    val_h = 2.99 * (224.0 / 480.0)
+    plt.figure(1, figsize=(4 * val_w, 2 * val_h))
+    width_ratios = (val_w, val_w, val_w, val_w)
     gs = matplotlib.gridspec.GridSpec(2, 4, width_ratios=width_ratios)
     gs.update(wspace=0.0, hspace=0.0, left=0.0, right=1.0, top=1.0, bottom=0.0)
 
     plt.subplot(gs[0, 0])
-    plt.annotate('FRONT LEFT', (0.01, 0.87), c='white', xycoords='axes fraction', fontsize=14)
-    plt.imshow(denormalise_img(images[0,n_present-1,0].cpu()))
-    plt.axis('off')
+    plt.annotate(
+        "FRONT LEFT", (0.01, 0.87), c="white", xycoords="axes fraction", fontsize=14
+    )
+    plt.imshow(denormalise_img(images[0, n_present - 1, 0].cpu()))
+    plt.axis("off")
 
     plt.subplot(gs[0, 1])
-    plt.annotate('FRONT', (0.01, 0.87), c='white', xycoords='axes fraction', fontsize=14)
-    plt.imshow(denormalise_img(images[0,n_present-1,1].cpu()))
-    plt.axis('off')
+    plt.annotate(
+        "FRONT", (0.01, 0.87), c="white", xycoords="axes fraction", fontsize=14
+    )
+    plt.imshow(denormalise_img(images[0, n_present - 1, 1].cpu()))
+    plt.axis("off")
 
     plt.subplot(gs[0, 2])
-    plt.annotate('FRONT RIGHT', (0.01, 0.87), c='white', xycoords='axes fraction', fontsize=14)
-    plt.imshow(denormalise_img(images[0,n_present-1,2].cpu()))
-    plt.axis('off')
+    plt.annotate(
+        "FRONT RIGHT", (0.01, 0.87), c="white", xycoords="axes fraction", fontsize=14
+    )
+    plt.imshow(denormalise_img(images[0, n_present - 1, 2].cpu()))
+    plt.axis("off")
 
     plt.subplot(gs[1, 0])
-    plt.annotate('BACK LEFT', (0.01, 0.87), c='white', xycoords='axes fraction', fontsize=14)
-    showing = denormalise_img(images[0,n_present-1,3].cpu())
+    plt.annotate(
+        "BACK LEFT", (0.01, 0.87), c="white", xycoords="axes fraction", fontsize=14
+    )
+    showing = denormalise_img(images[0, n_present - 1, 3].cpu())
     showing = showing.transpose(Image.FLIP_LEFT_RIGHT)
     plt.imshow(showing)
-    plt.axis('off')
+    plt.axis("off")
 
     plt.subplot(gs[1, 1])
-    plt.annotate('BACK', (0.01, 0.87), c='white', xycoords='axes fraction', fontsize=14)
+    plt.annotate("BACK", (0.01, 0.87), c="white", xycoords="axes fraction", fontsize=14)
     showing = denormalise_img(images[0, n_present - 1, 4].cpu())
     showing = showing.transpose(Image.FLIP_LEFT_RIGHT)
     plt.imshow(showing)
-    plt.axis('off')
+    plt.axis("off")
 
     plt.subplot(gs[1, 2])
-    plt.annotate('BACK', (0.01, 0.87), c='white', xycoords='axes fraction', fontsize=14)
+    plt.annotate("BACK", (0.01, 0.87), c="white", xycoords="axes fraction", fontsize=14)
     showing = denormalise_img(images[0, n_present - 1, 5].cpu())
     showing = showing.transpose(Image.FLIP_LEFT_RIGHT)
     plt.imshow(showing)
-    plt.axis('off')
+    plt.axis("off")
 
     plt.subplot(gs[:, 3])
     showing = torch.zeros((200, 200, 3)).numpy()
@@ -247,20 +266,22 @@ def save(output, labels, batch, n_present, frame, save_path):
     showing[pedestrian_index] = np.array([28 / 255, 81 / 255, 227 / 255])
 
     plt.imshow(make_contour(showing))
-    plt.axis('off')
+    plt.axis("off")
 
-    bx = np.array([-50.0 + 0.5/2.0, -50.0 + 0.5/2.0])
+    bx = np.array([-50.0 + 0.5 / 2.0, -50.0 + 0.5 / 2.0])
     dx = np.array([0.5, 0.5])
     w, h = 1.85, 4.084
-    pts = np.array([
-        [-h / 2. + 0.5, w / 2.],
-        [h / 2. + 0.5, w / 2.],
-        [h / 2. + 0.5, -w / 2.],
-        [-h / 2. + 0.5, -w / 2.],
-    ])
+    pts = np.array(
+        [
+            [-h / 2.0 + 0.5, w / 2.0],
+            [h / 2.0 + 0.5, w / 2.0],
+            [h / 2.0 + 0.5, -w / 2.0],
+            [-h / 2.0 + 0.5, -w / 2.0],
+        ]
+    )
     pts = (pts - bx) / dx
     pts[:, [0, 1]] = pts[:, [1, 0]]
-    plt.fill(pts[:, 0], pts[:, 1], '#76b900')
+    plt.fill(pts[:, 0], pts[:, 1], "#76b900")
 
     plt.xlim((200, 0))
     plt.ylim((0, 200))
@@ -268,13 +289,16 @@ def save(output, labels, batch, n_present, frame, save_path):
     gt_trajs = (gt_trajs[0, :, :2].cpu().numpy() - bx) / dx
     plt.plot(gt_trajs[:, 0], gt_trajs[:, 1], linewidth=3.0)
 
-    plt.savefig(save_path / ('%04d.png' % frame))
+    plt.savefig(save_path / ("%04d.png" % frame))
     plt.close()
 
-if __name__ == '__main__':
-    parser = ArgumentParser(description='STP3 evaluation')
-    parser.add_argument('--checkpoint', default='last.ckpt', type=str, help='path to checkpoint')
-    parser.add_argument('--dataroot', default=None, type=str)
+
+if __name__ == "__main__":
+    parser = ArgumentParser(description="STP3 evaluation")
+    parser.add_argument(
+        "--checkpoint", default="last.ckpt", type=str, help="path to checkpoint"
+    )
+    parser.add_argument("--dataroot", default=None, type=str)
 
     args = parser.parse_args()
 

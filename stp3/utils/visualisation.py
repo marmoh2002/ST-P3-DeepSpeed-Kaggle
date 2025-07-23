@@ -1,13 +1,15 @@
 import numpy as np
 import torch
-import matplotlib.pylab
+# import matplotlib.pylab
+import matplotlib.colors
 import matplotlib.pyplot as plt
+import matplotlib.cm
 from stp3.utils.tools import gen_dx_bx
 
 
 from stp3.utils.instance import predict_instance_segmentation_and_trajectories
 
-DEFAULT_COLORMAP = matplotlib.pylab.cm.jet
+DEFAULT_COLORMAP = matplotlib.cm.jet
 
 
 def flow_to_image(flow: np.ndarray, autoscale: bool = False) -> np.ndarray:
@@ -19,7 +21,7 @@ def flow_to_image(flow: np.ndarray, autoscale: bool = False) -> np.ndarray:
     v = flow[1, :, :]
 
     # Convert to polar coordinates
-    rad = np.sqrt(u ** 2 + v ** 2)
+    rad = np.sqrt(u**2 + v**2)
     maxrad = np.max(rad)
 
     # Normalise flow maps
@@ -41,7 +43,9 @@ def _normalise(image: np.ndarray) -> np.ndarray:
 
 
 def apply_colour_map(
-    image: np.ndarray, cmap: matplotlib.colors.LinearSegmentedColormap = DEFAULT_COLORMAP, autoscale: bool = False
+    image: np.ndarray,
+    cmap: matplotlib.colors.LinearSegmentedColormap = DEFAULT_COLORMAP,
+    autoscale: bool = False,
 ) -> np.ndarray:
     """
     Applies a colour map to the given 1 or 2 channel numpy image. if 2 channel, must be 2xHxW.
@@ -62,17 +66,23 @@ def apply_colour_map(
         if autoscale:
             image = _normalise(image)
         return np.transpose(image, axes=[1, 2, 0])
-    raise Exception('Image must be 1, 2 or 3 channel to convert to colour_map (CxHxW)')
+    raise Exception("Image must be 1, 2 or 3 channel to convert to colour_map (CxHxW)")
 
 
 def heatmap_image(
-    image: np.ndarray, cmap: matplotlib.colors.LinearSegmentedColormap = DEFAULT_COLORMAP, autoscale: bool = True
+    image: np.ndarray,
+    cmap: matplotlib.colors.LinearSegmentedColormap = DEFAULT_COLORMAP,
+    autoscale: bool = True,
 ) -> np.ndarray:
     """Colorize an 1 or 2 channel image with a colourmap."""
     if not issubclass(image.dtype.type, np.floating):
-        raise ValueError(f"Expected a ndarray of float type, but got dtype {image.dtype}")
+        raise ValueError(
+            f"Expected a ndarray of float type, but got dtype {image.dtype}"
+        )
     if not (image.ndim == 2 or (image.ndim == 3 and image.shape[0] in [1, 2])):
-        raise ValueError(f"Expected a ndarray of shape [H, W] or [1, H, W] or [2, H, W], but got shape {image.shape}")
+        raise ValueError(
+            f"Expected a ndarray of shape [H, W] or [1, H, W] or [2, H, W], but got shape {image.shape}"
+        )
     heatmap_np = apply_colour_map(image, cmap=cmap, autoscale=autoscale)
     heatmap_np = np.uint8(heatmap_np * 255)
     return heatmap_np
@@ -89,7 +99,7 @@ def compute_color(u: np.ndarray, v: np.ndarray) -> np.ndarray:
     colorwheel = make_color_wheel()
     ncols = np.size(colorwheel, 0)
 
-    rad = np.sqrt(u ** 2 + v ** 2)
+    rad = np.sqrt(u**2 + v**2)
     a = np.arctan2(-v, -u) / np.pi
     f_k = (a + 1) / 2 * (ncols - 1) + 1
     k_0 = np.floor(f_k).astype(int)
@@ -125,14 +135,18 @@ def make_color_wheel() -> np.ndarray:
     blue_magenta = 13
     magenta_red = 6
 
-    ncols = red_yellow + yellow_green + green_cyan + cyan_blue + blue_magenta + magenta_red
+    ncols = (
+        red_yellow + yellow_green + green_cyan + cyan_blue + blue_magenta + magenta_red
+    )
     colorwheel = np.zeros([ncols, 3])
 
     col = 0
 
     # red_yellow
     colorwheel[0:red_yellow, 0] = 255
-    colorwheel[0:red_yellow, 1] = np.transpose(np.floor(255 * np.arange(0, red_yellow) / red_yellow))
+    colorwheel[0:red_yellow, 1] = np.transpose(
+        np.floor(255 * np.arange(0, red_yellow) / red_yellow)
+    )
     col += red_yellow
 
     # yellow_green
@@ -144,21 +158,29 @@ def make_color_wheel() -> np.ndarray:
 
     # green_cyan
     colorwheel[col : col + green_cyan, 1] = 255
-    colorwheel[col : col + green_cyan, 2] = np.transpose(np.floor(255 * np.arange(0, green_cyan) / green_cyan))
+    colorwheel[col : col + green_cyan, 2] = np.transpose(
+        np.floor(255 * np.arange(0, green_cyan) / green_cyan)
+    )
     col += green_cyan
 
     # cyan_blue
-    colorwheel[col : col + cyan_blue, 1] = 255 - np.transpose(np.floor(255 * np.arange(0, cyan_blue) / cyan_blue))
+    colorwheel[col : col + cyan_blue, 1] = 255 - np.transpose(
+        np.floor(255 * np.arange(0, cyan_blue) / cyan_blue)
+    )
     colorwheel[col : col + cyan_blue, 2] = 255
     col += cyan_blue
 
     # blue_magenta
     colorwheel[col : col + blue_magenta, 2] = 255
-    colorwheel[col : col + blue_magenta, 0] = np.transpose(np.floor(255 * np.arange(0, blue_magenta) / blue_magenta))
+    colorwheel[col : col + blue_magenta, 0] = np.transpose(
+        np.floor(255 * np.arange(0, blue_magenta) / blue_magenta)
+    )
     col += +blue_magenta
 
     # magenta_red
-    colorwheel[col : col + magenta_red, 2] = 255 - np.transpose(np.floor(255 * np.arange(0, magenta_red) / magenta_red))
+    colorwheel[col : col + magenta_red, 2] = 255 - np.transpose(
+        np.floor(255 * np.arange(0, magenta_red) / magenta_red)
+    )
     colorwheel[col : col + magenta_red, 0] = 255
 
     return colorwheel
@@ -185,17 +207,23 @@ def make_contour(img, colour=[0, 0, 0], double_line=False):
     return out
 
 
-def plot_instance_map(instance_image, instance_map, instance_colours=None, bg_image=None):
+def plot_instance_map(
+    instance_image, instance_map, instance_colours=None, bg_image=None
+):
     if isinstance(instance_image, torch.Tensor):
         instance_image = instance_image.cpu().numpy()
     assert isinstance(instance_image, np.ndarray)
     if instance_colours is None:
         instance_colours = generate_instance_colours(instance_map)
     if len(instance_image.shape) > 2:
-        instance_image = instance_image.reshape((instance_image.shape[-2], instance_image.shape[-1]))
+        instance_image = instance_image.reshape(
+            (instance_image.shape[-2], instance_image.shape[-1])
+        )
 
     if bg_image is None:
-        plot_image = 255 * np.ones((instance_image.shape[0], instance_image.shape[1], 3), dtype=np.uint8)
+        plot_image = 255 * np.ones(
+            (instance_image.shape[0], instance_image.shape[1], 3), dtype=np.uint8
+        )
     else:
         plot_image = bg_image
 
@@ -205,7 +233,14 @@ def plot_instance_map(instance_image, instance_map, instance_colours=None, bg_im
     return plot_image
 
 
-def visualise_output(labels, output, cfg):
+def visualise_output(labels, output, cfg, save_dir="/kaggle/working/visualizations"):
+    import os
+    import cv2
+    from pathlib import Path
+    
+    # Create the directory if it doesn't exist
+    Path(save_dir).mkdir(parents=True, exist_ok=True)
+    
     semantic_colours = np.array([[255, 255, 255], [0, 0, 0]], dtype=np.uint8)
 
     if cfg.INSTANCE_SEG.ENABLED:
@@ -213,7 +248,7 @@ def visualise_output(labels, output, cfg):
             output, compute_matched_centers=False
         )
 
-    sequence_length = labels['segmentation'].shape[1]
+    sequence_length = labels["segmentation"].shape[1]
     b = 0
     video = []
     for t in range(sequence_length):
@@ -314,32 +349,56 @@ def visualise_output(labels, output, cfg):
         out_t = np.concatenate(out_t, axis=1)
         # Shape (C, H, W)
         out_t = out_t.transpose((2, 0, 1))
-
         video.append(out_t)
 
     # Shape (B, T, C, H, W)
     video = np.stack(video)[None]
+    
+    # Save each frame as an image
+    for t in range(sequence_length):
+        # Convert from (C, H, W) to (H, W, C) for saving with OpenCV
+        frame = video[0, t].transpose(1, 2, 0)
+        # Convert from RGB to BGR (OpenCV format)
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        # Save the frame
+        cv2.imwrite(f"{save_dir}/frame_{t:04d}.png", frame)
+    
+    # Optionally, you can also create a video file
+    if sequence_length > 0:
+        height, width = video[0, 0].shape[1:3]
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        video_writer = cv2.VideoWriter(f"{save_dir}/visualization.mp4", fourcc, 10, (width, height))
+        
+        for t in range(sequence_length):
+            frame = video[0, t].transpose(1, 2, 0)
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            video_writer.write(frame)
+        
+        video_writer.release()
+        
+    print(f"Visualization saved to {save_dir}")
     return video
 
 
 def convert_figure_numpy(figure):
-    """ Convert figure to numpy image """
+    """Convert figure to numpy image"""
     figure_np = np.frombuffer(figure.canvas.tostring_rgb(), dtype=np.uint8)
     figure_np = figure_np.reshape(figure.canvas.get_width_height()[::-1] + (3,))
     return figure_np
 
+
 def plot_planning(hd_map, traj, cfg):
-    '''
+    """
     hd_map: torch.tensor (2, 200, 200)
     traj: torch.tensor (n_future, 2)
-    '''
+    """
     if isinstance(hd_map, torch.Tensor):
         hd_map = hd_map.detach().cpu().numpy()
     if isinstance(traj, torch.Tensor):
         traj = traj.detach().cpu().numpy()
 
     h, w = hd_map.shape[-2:]
-    fig = plt.figure(figsize=(w/100, h/100))
+    fig = plt.figure(figsize=(w / 100, h / 100))
 
     dx, bx, _ = gen_dx_bx(cfg.LIFT.X_BOUND, cfg.LIFT.Y_BOUND, cfg.LIFT.Z_BOUND)
     dx, bx = dx[:2].numpy(), bx[:2].numpy()
@@ -352,21 +411,23 @@ def plot_planning(hd_map, traj, cfg):
     c = np.array([0.50, 0.24, 0.46])
     map[yx[0], yx[1], :] = c
     plt.imshow(map, alpha=0.2)
-    plt.axis('off')
+    plt.axis("off")
 
     plt.xlim((w, 0))
     plt.ylim((0, h))
     W = cfg.EGO.WIDTH
     H = cfg.EGO.HEIGHT
-    pts = np.array([
-        [-H / 2. + 0.5, W / 2.],
-        [H / 2. + 0.5, W / 2.],
-        [H / 2. + 0.5, -W / 2.],
-        [-H / 2. + 0.5, -W / 2.],
-    ])
+    pts = np.array(
+        [
+            [-H / 2.0 + 0.5, W / 2.0],
+            [H / 2.0 + 0.5, W / 2.0],
+            [H / 2.0 + 0.5, -W / 2.0],
+            [-H / 2.0 + 0.5, -W / 2.0],
+        ]
+    )
     pts = (pts - bx) / dx
     pts[:, [0, 1]] = pts[:, [1, 0]]
-    plt.fill(pts[:, 0], pts[:, 1], '#76b900')
+    plt.fill(pts[:, 0], pts[:, 1], "#76b900")
 
     gt = (traj[:, :2] - bx) / dx
     plt.plot(gt[:, 0], gt[:, 1])
@@ -375,86 +436,89 @@ def plot_planning(hd_map, traj, cfg):
     figure_numpy = convert_figure_numpy(fig)
     plt.close()
 
-
     return figure_numpy
+
 
 def generate_instance_colours(instance_map):
     # Most distinct 22 colors (kelly colors from https://stackoverflow.com/questions/470690/how-to-automatically-generate
     # -n-distinct-colors)
     # plus some colours from AD40k
-    INSTANCE_COLOURS = np.asarray([
-        [0, 0, 0],
-        [255, 179, 0],
-        [128, 62, 117],
-        [255, 104, 0],
-        [166, 189, 215],
-        [193, 0, 32],
-        [206, 162, 98],
-        [129, 112, 102],
-        [0, 125, 52],
-        [246, 118, 142],
-        [0, 83, 138],
-        [255, 122, 92],
-        [83, 55, 122],
-        [255, 142, 0],
-        [179, 40, 81],
-        [244, 200, 0],
-        [127, 24, 13],
-        [147, 170, 0],
-        [89, 51, 21],
-        [241, 58, 19],
-        [35, 44, 22],
-        [112, 224, 255],
-        [70, 184, 160],
-        [153, 0, 255],
-        [71, 255, 0],
-        [255, 0, 163],
-        [255, 204, 0],
-        [0, 255, 235],
-        [255, 0, 235],
-        [255, 0, 122],
-        [255, 245, 0],
-        [10, 190, 212],
-        [214, 255, 0],
-        [0, 204, 255],
-        [20, 0, 255],
-        [255, 255, 0],
-        [0, 153, 255],
-        [0, 255, 204],
-        [41, 255, 0],
-        [173, 0, 255],
-        [0, 245, 255],
-        [71, 0, 255],
-        [0, 255, 184],
-        [0, 92, 255],
-        [184, 255, 0],
-        [255, 214, 0],
-        [25, 194, 194],
-        [92, 0, 255],
-        [220, 220, 220],
-        [255, 9, 92],
-        [112, 9, 255],
-        [8, 255, 214],
-        [255, 184, 6],
-        [10, 255, 71],
-        [255, 41, 10],
-        [7, 255, 255],
-        [224, 255, 8],
-        [102, 8, 255],
-        [255, 61, 6],
-        [255, 194, 7],
-        [0, 255, 20],
-        [255, 8, 41],
-        [255, 5, 153],
-        [6, 51, 255],
-        [235, 12, 255],
-        [160, 150, 20],
-        [0, 163, 255],
-        [140, 140, 140],
-        [250, 10, 15],
-        [20, 255, 0],
-    ])
+    INSTANCE_COLOURS = np.asarray(
+        [
+            [0, 0, 0],
+            [255, 179, 0],
+            [128, 62, 117],
+            [255, 104, 0],
+            [166, 189, 215],
+            [193, 0, 32],
+            [206, 162, 98],
+            [129, 112, 102],
+            [0, 125, 52],
+            [246, 118, 142],
+            [0, 83, 138],
+            [255, 122, 92],
+            [83, 55, 122],
+            [255, 142, 0],
+            [179, 40, 81],
+            [244, 200, 0],
+            [127, 24, 13],
+            [147, 170, 0],
+            [89, 51, 21],
+            [241, 58, 19],
+            [35, 44, 22],
+            [112, 224, 255],
+            [70, 184, 160],
+            [153, 0, 255],
+            [71, 255, 0],
+            [255, 0, 163],
+            [255, 204, 0],
+            [0, 255, 235],
+            [255, 0, 235],
+            [255, 0, 122],
+            [255, 245, 0],
+            [10, 190, 212],
+            [214, 255, 0],
+            [0, 204, 255],
+            [20, 0, 255],
+            [255, 255, 0],
+            [0, 153, 255],
+            [0, 255, 204],
+            [41, 255, 0],
+            [173, 0, 255],
+            [0, 245, 255],
+            [71, 0, 255],
+            [0, 255, 184],
+            [0, 92, 255],
+            [184, 255, 0],
+            [255, 214, 0],
+            [25, 194, 194],
+            [92, 0, 255],
+            [220, 220, 220],
+            [255, 9, 92],
+            [112, 9, 255],
+            [8, 255, 214],
+            [255, 184, 6],
+            [10, 255, 71],
+            [255, 41, 10],
+            [7, 255, 255],
+            [224, 255, 8],
+            [102, 8, 255],
+            [255, 61, 6],
+            [255, 194, 7],
+            [0, 255, 20],
+            [255, 8, 41],
+            [255, 5, 153],
+            [6, 51, 255],
+            [235, 12, 255],
+            [160, 150, 20],
+            [0, 163, 255],
+            [140, 140, 140],
+            [250, 10, 15],
+            [20, 255, 0],
+        ]
+    )
 
-    return {instance_id: INSTANCE_COLOURS[global_instance_id % len(INSTANCE_COLOURS)] for
-            instance_id, global_instance_id in instance_map.items()
-            }
+    return {
+        instance_id: INSTANCE_COLOURS[global_instance_id % len(INSTANCE_COLOURS)]
+        for instance_id, global_instance_id in instance_map.items()
+    }

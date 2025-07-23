@@ -1,12 +1,12 @@
 TAG: 'Planning'
 
-GPUS: [0, 1, 2, 3]
+GPUS: [0, 1]
 
-BATCHSIZE: 2
-PRECISION: 16
-EPOCHS: 20
+BATCHSIZE: 1
+PRECISION: 32
+EPOCHS: 5
 
-N_WORKERS: 8
+N_WORKERS: 1
 
 DATASET:
   VERSION: 'trainval'
@@ -19,7 +19,7 @@ LIFT:
 
 MODEL:
   ENCODER:
-    NAME: 'efficientnet-b4'
+    NAME: 'efficientnet-b0'
     USE_DEPTH_DISTRIBUTION: True
   TEMPORAL_MODEL:
     NAME: 'temporal_block'

@@ -1,3 +1,32 @@
+"""Configuration system for ST-P3 (Spatio-Temporal Prediction and Planning Platform).
+
+This module defines the configuration system using CfgNode from fvcore. It includes settings for:
+- Basic training parameters (GPU, batch size, epochs, etc.)
+- Dataset configuration (NuScenes settings)
+- Model architecture (encoder, temporal model, decoder)
+- Image processing parameters
+- BEV (Bird's Eye View) lifting parameters
+- Semantic segmentation settings for vehicles, pedestrians, and HD maps
+- Instance segmentation and flow settings
+- Probabilistic prediction settings
+- Planning parameters
+- Optimization settings
+- Cost function parameters for trajectory planning
+
+The configuration can be modified through:
+1. Direct modification of default values
+2. Loading from a config file
+3. Command line arguments
+
+Functions:
+    convert_to_dict(cfg_node, key_list): Converts a config node to a dictionary
+    get_parser(): Returns argument parser for command-line configuration
+    get_cfg(args, cfg_dict): Returns configuration after merging defaults with provided options
+
+Classes:
+    CfgNode: Extended version of fvcore's CfgNode with additional functionality
+"""
+
 import argparse
 from fvcore.common.config import CfgNode as _CfgNode
 
@@ -8,8 +37,8 @@ def convert_to_dict(cfg_node, key_list=[]):
     if not isinstance(cfg_node, _CfgNode):
         if type(cfg_node) not in _VALID_TYPES:
             print(
-                'Key {} with value {} is not a valid type; valid types: {}'.format(
-                    '.'.join(key_list), type(cfg_node), _VALID_TYPES
+                "Key {} with value {} is not a valid type; valid types: {}".format(
+                    ".".join(key_list), type(cfg_node), _VALID_TYPES
                 ),
             )
         return cfg_node
@@ -30,33 +59,48 @@ class CfgNode(_CfgNode):
 CN = CfgNode
 
 _C = CN()
-_C.LOG_DIR = 'tensorboard_logs'
-_C.TAG = 'default'
+_C.LOG_DIR = "tensorboard_logs"
+_C.TAG = "default"
 
-_C.GPUS = [0]  # which gpus to use
+_C.ACCELERATOR = "gpu"  # cpu or gpu
+_C.GPUS = [0, 1]  # which gpus to use
 _C.PRECISION = 32  # 16bit or 32bit
-_C.BATCHSIZE = 3
-_C.EPOCHS = 20
+_C.BATCHSIZE = 1  # 1 batch size instead of 3
+_C.EPOCHS = 2
 
-_C.N_WORKERS = 5
+_C.N_WORKERS = 1  # default 5 (changed from 8)
 _C.VIS_INTERVAL = 5000
 _C.LOGGING_INTERVAL = 500
 
 _C.PRETRAINED = CN()
 _C.PRETRAINED.LOAD_WEIGHTS = False
-_C.PRETRAINED.PATH = ''
+_C.PRETRAINED.PATH = ""
 
 _C.DATASET = CN()
-_C.DATASET.DATAROOT = '/data/Nuscenes'
-_C.DATASET.VERSION = 'trainval'
-_C.DATASET.NAME = 'nuscenes'
-_C.DATASET.MAP_FOLDER = '/data/Nuscenes'
+_C.DATASET.DATAROOT = "/data/Nuscenes"
+_C.DATASET.VERSION = "trainval"  # mini, trainval, test
+_C.DATASET.TRAINVAL_SIZE = 10
+_C.DATASET.NAME = "nuscenes"
+_C.DATASET.MAP_FOLDER = "/data/Nuscenes"
 _C.DATASET.IGNORE_INDEX = 255  # Ignore index when creating flow/offset labels
-_C.DATASET.FILTER_INVISIBLE_VEHICLES = True  # Filter vehicles that are not visible from the cameras
-_C.DATASET.SAVE_DIR = 'datas'
+_C.DATASET.FILTER_INVISIBLE_VEHICLES = (
+    True  # Filter vehicles that are not visible from the cameras
+)
+_C.DATASET.SAVE_DIR = "datas"
 
-_C.TIME_RECEPTIVE_FIELD = 3  # how many frames of temporal context (1 for single timeframe)
-_C.N_FUTURE_FRAMES = 4  # how many time steps into the future to predict
+_C.TIME_RECEPTIVE_FIELD = (
+    3  # how many frames of temporal context (1 for single timeframe)
+)
+_C.N_FUTURE_FRAMES = 3  # how many time steps into the future to predict
+
+# _C.DEEPSPEED = CN()
+# _C.DEEPSPEED.ENABLED = False
+# _C.DEEPSPEED.STAGE = 3  # 0, 1, 2, or 3
+# _C.DEEPSPEED.CPU_OFFLOAD = True  # Offload optimizer states to CPU
+# _C.DEEPSPEED.OVERLAP_COMM = True  # Overlap communication and computation
+# _C.DEEPSPEED.GRADIENT_PRE_DIVISION = True  # Gradient pre-division
+# _C.DEEPSPEED.GRADIENT_AS_BUCKET_VIEW = True  # Gradient as bucket view
+# _C.DEEPSPEED.OFFLOAD_OPTIMIZER = True  # Offload optimizer states to CPU
 
 _C.IMAGE = CN()
 _C.IMAGE.FINAL_DIM = (224, 480)
@@ -64,10 +108,17 @@ _C.IMAGE.RESIZE_SCALE = 0.3
 _C.IMAGE.TOP_CROP = 46
 _C.IMAGE.ORIGINAL_HEIGHT = 900  # Original input RGB camera height
 _C.IMAGE.ORIGINAL_WIDTH = 1600  # Original input RGB camera width
-_C.IMAGE.NAMES = ['CAM_FRONT_LEFT', 'CAM_FRONT', 'CAM_FRONT_RIGHT', 'CAM_BACK_LEFT', 'CAM_BACK', 'CAM_BACK_RIGHT']
+_C.IMAGE.NAMES = [
+    "CAM_FRONT_LEFT",
+    "CAM_FRONT",
+    "CAM_FRONT_RIGHT",
+    "CAM_BACK_LEFT",
+    "CAM_BACK",
+    "CAM_BACK_RIGHT",
+]
 
 _C.LIFT = CN()  # image to BEV lifting
-_C.LIFT.X_BOUND = [-50.0, 50.0, 0.5]  # Forward
+_C.LIFT.X_BOUND = [-50.0, 50.0, 0.5]  # Forward
 _C.LIFT.Y_BOUND = [-50.0, 50.0, 0.5]  # Sides
 _C.LIFT.Z_BOUND = [-10.0, 10.0, 20.0]  # Height
 _C.LIFT.D_BOUND = [2.0, 50.0, 1.0]
@@ -82,12 +133,12 @@ _C.MODEL = CN()
 
 _C.MODEL.ENCODER = CN()
 _C.MODEL.ENCODER.DOWNSAMPLE = 8
-_C.MODEL.ENCODER.NAME = 'efficientnet-b4'
+_C.MODEL.ENCODER.NAME = "efficientnet-b0"
 _C.MODEL.ENCODER.OUT_CHANNELS = 64
 _C.MODEL.ENCODER.USE_DEPTH_DISTRIBUTION = True
 
 _C.MODEL.TEMPORAL_MODEL = CN()
-_C.MODEL.TEMPORAL_MODEL.NAME = 'temporal_block'  # type of temporal model
+_C.MODEL.TEMPORAL_MODEL.NAME = "temporal_block" #"identity" if trf = 1  # type of temporal model
 _C.MODEL.TEMPORAL_MODEL.START_OUT_CHANNELS = 64
 _C.MODEL.TEMPORAL_MODEL.EXTRA_IN_CHANNELS = 0
 _C.MODEL.TEMPORAL_MODEL.INBETWEEN_LAYERS = 0
@@ -103,6 +154,12 @@ _C.MODEL.FUTURE_PRED = CN()
 _C.MODEL.FUTURE_PRED.N_GRU_BLOCKS = 2
 _C.MODEL.FUTURE_PRED.N_RES_LAYERS = 1
 _C.MODEL.FUTURE_PRED.MIXTURE = True
+
+# # Memory efficiency settings
+# _C.MEMORY_EFFICIENT = CN()
+# _C.MEMORY_EFFICIENT.ENABLED = True
+# _C.MEMORY_EFFICIENT.BATCH_SPLIT = 2  # Split batch into this many pieces
+# _C.MEMORY_EFFICIENT.WARNING_THRESHOLD = 10  # Memory warning threshold in GB
 
 _C.MODEL.DECODER = CN()
 
@@ -123,7 +180,7 @@ _C.SEMANTIC_SEG.PEDESTRIAN.TOP_K_RATIO = 0.25
 
 _C.SEMANTIC_SEG.HDMAP = CN()
 _C.SEMANTIC_SEG.HDMAP.ENABLED = True
-_C.SEMANTIC_SEG.HDMAP.ELEMENTS = ['lane_divider', 'drivable_area']
+_C.SEMANTIC_SEG.HDMAP.ELEMENTS = ["lane_divider", "drivable_area"]
 _C.SEMANTIC_SEG.HDMAP.WEIGHTS = [[1.0, 5.0], [1.0, 1.0]]
 _C.SEMANTIC_SEG.HDMAP.TRAIN_WEIGHT = [1, 1]
 _C.SEMANTIC_SEG.HDMAP.USE_TOP_K = [True, False]
@@ -137,13 +194,13 @@ _C.INSTANCE_FLOW.ENABLED = True
 
 _C.PROBABILISTIC = CN()
 _C.PROBABILISTIC.ENABLED = True  # learn a distribution over futures
-_C.PROBABILISTIC.METHOD = 'GAUSSIAN' # [BERNOULLI, GAUSSIAN, MIXGAUSSIAN]
+_C.PROBABILISTIC.METHOD = "GAUSSIAN"  # [BERNOULLI, GAUSSIAN, MIXGAUSSIAN]
 
 _C.PLANNING = CN()
-_C.PLANNING.ENABLED = True
+_C.PLANNING.ENABLED = False
 _C.PLANNING.GRU_STATE_SIZE = 256
 _C.PLANNING.SAMPLE_NUM = 600
-_C.PLANNING.COMMAND = ['LEFT', 'FORWARD', 'RIGHT']
+_C.PLANNING.COMMAND = ["LEFT", "FORWARD", "RIGHT"]
 
 _C.FUTURE_DISCOUNT = 0.95
 
@@ -154,24 +211,30 @@ _C.GRAD_NORM_CLIP = 5
 
 _C.COST_FUNCTION = CN()
 _C.COST_FUNCTION.SAFETY = 0.1
-_C.COST_FUNCTION.LAMBDA = 1.
-_C.COST_FUNCTION.HEADWAY = 1.
-_C.COST_FUNCTION.LRDIVIDER = 10. 
+_C.COST_FUNCTION.LAMBDA = 1.0
+_C.COST_FUNCTION.HEADWAY = 1.0
+_C.COST_FUNCTION.LRDIVIDER = 10.0
 _C.COST_FUNCTION.COMFORT = 0.1
 _C.COST_FUNCTION.PROGRESS = 0.5
-_C.COST_FUNCTION.VOLUME = 100.
+_C.COST_FUNCTION.VOLUME = 100.0
+
 
 def get_parser():
-    parser = argparse.ArgumentParser(description='Fiery training')
-    parser.add_argument('--config-file', default='', metavar='FILE', help='path to config file')
+    parser = argparse.ArgumentParser(description="Fiery training")
     parser.add_argument(
-        'opts', help='Modify config options using the command-line', default=None, nargs=argparse.REMAINDER,
+        "--config-file", default="", metavar="FILE", help="path to config file"
     )
+    # parser.add_argument(
+    #     "opts",
+    #     help="Modify config options using the command-line",
+    #     default=None,
+    #     nargs=argparse.REMAINDER,
+    # )
     return parser
 
 
 def get_cfg(args=None, cfg_dict=None):
-    """ First get default config. Then merge cfg_dict. Then merge according to args. """
+    """First get default config. Then merge cfg_dict. Then merge according to args."""
 
     cfg = _C.clone()
 
@@ -184,6 +247,6 @@ def get_cfg(args=None, cfg_dict=None):
     if args is not None:
         if args.config_file:
             cfg.merge_from_file(args.config_file)
-        cfg.merge_from_list(args.opts)
+        # cfg.merge_from_list(args.opts)
         # cfg.freeze()
     return cfg

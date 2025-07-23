@@ -5,8 +5,9 @@ import numpy as np
 import torch
 from scipy.special import fresnel
 
-def sample(v0, Kappa, T0, N0, tt, M, possibility = None):
-    '''
+
+def sample(v0, Kappa, T0, N0, tt, M, possibility=None):
+    """
     :param v0: initial velocity
     :param Kappa: curvature
     :param T0: initial tangent vector
@@ -16,7 +17,7 @@ def sample(v0, Kappa, T0, N0, tt, M, possibility = None):
     :param possibility: torch.Tensor [3]
     :param debug: whether in debug mode
     :return: the nparray of trajectory
-    '''
+    """
     # sample accelerations
     if possibility is None:
         possibility = [0.4, 0.2, 0.4]
@@ -25,16 +26,19 @@ def sample(v0, Kappa, T0, N0, tt, M, possibility = None):
     left_num = int(M * possibility[0])
     right_num = int(M * possibility[2])
 
-    accelerations = 10*(np.random.rand(M)-0.5) + 2  # -3m/s^2 to 7m/s^2
+    accelerations = 10 * (np.random.rand(M) - 0.5) + 2  # -3m/s^2 to 7m/s^2
 
     # sample velocities
     # randomly sample a velocity <=15m/s at 80% of time
-    v_options = np.stack((np.full(M, v0), 15*np.random.rand(M)))
+    v_options = np.stack((np.full(M, v0), 15 * np.random.rand(M)))
     v_selections = (np.random.rand(M) >= 0.2).astype(int)
     velocities = v_options[v_selections, np.arange(M)]
 
     # generate longitudinal distances
-    L = velocities[:, None] * tt[None, :] + accelerations[:, None] * (tt[None, :]**2) / 2
+    L = (
+        velocities[:, None] * tt[None, :]
+        + accelerations[:, None] * (tt[None, :] ** 2) / 2
+    )
     L_straight = L[:straight_num]
     L = L[straight_num:]
     # print("L:", L)
@@ -53,15 +57,17 @@ def sample(v0, Kappa, T0, N0, tt, M, possibility = None):
     Krappa = min(-0.01, Kappa) if Kappa <= 0 else max(0.01, Kappa)
     radius = np.abs(1 / Krappa)
     center = np.array([-1 / Krappa, 0])
-    circle_phis = L / radius if Krappa >= 0 else np.pi - L/radius
+    circle_phis = L / radius if Krappa >= 0 else np.pi - L / radius
 
-    circle_points = np.dstack([
-        center[0] + radius * np.cos(circle_phis),
-        center[1] + radius * np.sin(circle_phis),
-    ])
+    circle_points = np.dstack(
+        [
+            center[0] + radius * np.cos(circle_phis),
+            center[1] + radius * np.sin(circle_phis),
+        ]
+    )
 
     # rotate thetas, wrap
-    circle_thetas = L/radius if Krappa >= 0 else -L/radius
+    circle_thetas = L / radius if Krappa >= 0 else -L / radius
     circle_thetas = (circle_thetas + np.pi) % (2 * np.pi) - np.pi
     circles = np.concatenate((circle_points, circle_thetas[:, :, None]), axis=-1)
 
@@ -76,7 +82,9 @@ def sample(v0, Kappa, T0, N0, tt, M, possibility = None):
     # Ss, Cs = fresnel((Xis - Xi0) / alphas[:, None])
     Ss, Cs = fresnel(Xis / alphas[:, None])
 
-    clothoid_points = alphas[:, None, None] * (Cs[:, :, None]*T0[None, None, :] + Ss[:, :, None]*N0[None, None, :])
+    clothoid_points = alphas[:, None, None] * (
+        Cs[:, :, None] * T0[None, None, :] + Ss[:, :, None] * N0[None, None, :]
+    )
 
     #
     Xs = clothoid_points[:, :, 0] - clothoid_points[:, 0, 0, None]
@@ -88,20 +96,28 @@ def sample(v0, Kappa, T0, N0, tt, M, possibility = None):
     # we will rotate it clockwise by theta
     # when kappa is negative, the clothoid curves right, theta is negative
     # we will rotate it counterclockwise by theta
-    clothoid_points[:, :, 0] = np.cos(signed_clothoid_theta0s) * Xs + np.sin(signed_clothoid_theta0s) * Ys
-    clothoid_points[:, :, 1] = - np.sin(signed_clothoid_theta0s) * Xs + np.cos(signed_clothoid_theta0s) * Ys
+    clothoid_points[:, :, 0] = (
+        np.cos(signed_clothoid_theta0s) * Xs + np.sin(signed_clothoid_theta0s) * Ys
+    )
+    clothoid_points[:, :, 1] = (
+        -np.sin(signed_clothoid_theta0s) * Xs + np.cos(signed_clothoid_theta0s) * Ys
+    )
 
     # tangent vector: http://mathworld.wolfram.com/CornuSpiral.html
-    clothoid_thetas = 0.5 * np.pi * ((Xis / alphas[:, None])**2)
+    clothoid_thetas = 0.5 * np.pi * ((Xis / alphas[:, None]) ** 2)
     clothoid_thetas = clothoid_thetas - clothoid_theta0s
     signed_clothoid_thetas = clothoid_thetas * np.sign(Kappa)
     # clothoid_thetas = clothoid_thetas if Krappa >= 0 else -clothoid_thetas
     # wrap
     # clothoid_thetas = (clothoid_thetas + np.pi) % (2 * np.pi) - np.pi
-    wrapped_signed_clothoid_thetas = (signed_clothoid_thetas + np.pi) % (2 * np.pi) - np.pi
+    wrapped_signed_clothoid_thetas = (signed_clothoid_thetas + np.pi) % (
+        2 * np.pi
+    ) - np.pi
     # wrapped_signed_clothoid_thetas = (signed_clothoid_thetas) % (2 * np.pi)
     #
-    clothoids = np.concatenate((clothoid_points, wrapped_signed_clothoid_thetas[:, :, None]), axis=-1)
+    clothoids = np.concatenate(
+        (clothoid_points, wrapped_signed_clothoid_thetas[:, :, None]), axis=-1
+    )
 
     ############################################################################
     # pick M in total
@@ -127,17 +143,17 @@ def sample(v0, Kappa, T0, N0, tt, M, possibility = None):
     #
     # trajectories = np.select(conditions, choices)
     if Kappa > 0:
-        left_curve = trajs[: left_num]
-        right_curve = trajs[left_num: left_num + right_num]
-        right_curve = np.dstack((
-            -right_curve[:, :, 0], right_curve[:, :, 1], -right_curve[:, :, 2]
-        ))
+        left_curve = trajs[:left_num]
+        right_curve = trajs[left_num : left_num + right_num]
+        right_curve = np.dstack(
+            (-right_curve[:, :, 0], right_curve[:, :, 1], -right_curve[:, :, 2])
+        )
     else:
-        right_curve = trajs[: left_num]
-        left_curve = trajs[left_num: left_num + right_num]
-        left_curve = np.dstack((
-            -left_curve[:, :, 0], left_curve[:, :, 1], -left_curve[:, :, 2]
-        ))
+        right_curve = trajs[:left_num]
+        left_curve = trajs[left_num : left_num + right_num]
+        left_curve = np.dstack(
+            (-left_curve[:, :, 0], left_curve[:, :, 1], -left_curve[:, :, 2])
+        )
 
     trajectories = np.concatenate([left_curve, lines, right_curve], axis=0)
     mask = np.argsort(trajectories[:, -1, 0])
@@ -145,12 +161,14 @@ def sample(v0, Kappa, T0, N0, tt, M, possibility = None):
 
     return trajectories
 
+
 if __name__ == "__main__":
     from nuscenes.nuscenes import NuScenes
     from nuscenes.can_bus.can_bus_api import NuScenesCanBus
     import matplotlib.pyplot as plt
-    nusc = NuScenes("v1.0-mini", '/home/hsc/data/Nuscenes')
-    nusc_can = NuScenesCanBus(dataroot='/home/hsc/data/Nuscenes')
+
+    nusc = NuScenes("v1.0-mini", "/home/hsc/data/Nuscenes")
+    nusc_can = NuScenesCanBus(dataroot="/home/hsc/data/Nuscenes")
 
     for scene in nusc.scene:
         scene_name = scene["name"]
@@ -158,9 +176,15 @@ if __name__ == "__main__":
         if scene_id in nusc_can.can_blacklist:
             print(f"skipping {scene_name}")
             continue
-        pose = nusc_can.get_messages(scene_name, "pose") # The current pose of the ego vehicle, sampled at 50 HZ
-        saf = nusc_can.get_messages(scene_name, "steeranglefeedback") # Steering angle feedback in radians at 100 HZ
-        vm = nusc_can.get_messages(scene_name, "vehicle_monitor") # information most, but sample at 2 HZ
+        pose = nusc_can.get_messages(
+            scene_name, "pose"
+        )  # The current pose of the ego vehicle, sampled at 50 HZ
+        saf = nusc_can.get_messages(
+            scene_name, "steeranglefeedback"
+        )  # Steering angle feedback in radians at 100 HZ
+        vm = nusc_can.get_messages(
+            scene_name, "vehicle_monitor"
+        )  # information most, but sample at 2 HZ
         # NOTE: I tried to verify if the relevant measurements are consistent
         # across multiple tables that contain redundant information
         # NOTE: verified pose's velocity matches vehicle monitor's
@@ -174,7 +198,7 @@ if __name__ == "__main__":
         # initial velocity (m/s)
         v0 = pose[23]["vel"][0]
         # curvature
-        #Kappa = 2 * saf[45]["value"] / 2.588  # 2 x \phi / distance between front and rear
+        # Kappa = 2 * saf[45]["value"] / 2.588  # 2 x \phi / distance between front and rear
         Kappa = 0
         # T0: longitudinal axis  Tangent vector
         T0 = np.array([0.0, 1.0])
@@ -183,13 +207,13 @@ if __name__ == "__main__":
         # tt: time stamps
         tt = np.arange(0.0, 3.01, 0.01)
         # M: number of samples
-        M = 1800
+        M = 1800  # 1800
         #
         debug = False
         #
         trajectories = sample(v0, Kappa, T0, N0, tt, M)
 
-        trajectories = trajectories[:,::100]
+        trajectories = trajectories[:, ::100]
 
         #
         for i in range(len(trajectories)):

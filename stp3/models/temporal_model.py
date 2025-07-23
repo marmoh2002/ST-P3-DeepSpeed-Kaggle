@@ -4,10 +4,18 @@ import torch.nn as nn
 from stp3.layers.temporal import Bottleneck3D, TemporalBlock
 from stp3.layers.convolutions import ConvBlock, Bottleneck, DeepLabHead
 
+
 class TemporalModel(nn.Module):
     def __init__(
-            self, in_channels, receptive_field, input_shape, start_out_channels=64, extra_in_channels=0,
-            n_spatial_layers_between_temporal_layers=0, use_pyramid_pooling=True):
+        self,
+        in_channels,
+        receptive_field,
+        input_shape,
+        start_out_channels=64,
+        extra_in_channels=0,
+        n_spatial_layers_between_temporal_layers=0,
+        use_pyramid_pooling=True,
+    ):
         super().__init__()
         self.receptive_field = receptive_field
         n_temporal_layers = receptive_field - 1
@@ -32,7 +40,9 @@ class TemporalModel(nn.Module):
                 pool_sizes=pool_sizes,
             )
             spatial = [
-                Bottleneck3D(block_out_channels, block_out_channels, kernel_size=(1, 3, 3))
+                Bottleneck3D(
+                    block_out_channels, block_out_channels, kernel_size=(1, 3, 3)
+                )
                 for _ in range(n_spatial_layers_between_temporal_layers)
             ]
             temporal_spatial_layers = nn.Sequential(temporal, *spatial)
@@ -43,7 +53,9 @@ class TemporalModel(nn.Module):
 
         self.out_channels = block_in_channels
 
-        self.final_conv = DeepLabHead(block_out_channels, block_out_channels, hidden_channel=128)
+        self.final_conv = DeepLabHead(
+            block_out_channels, block_out_channels, hidden_channel=128
+        )
 
         self.model = nn.Sequential(*modules)
 

@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torchvision
 
+
 def pack_sequence_dim(x):
     b, s = x.shape[:2]
     return x.view(b * s, *x.shape[2:])

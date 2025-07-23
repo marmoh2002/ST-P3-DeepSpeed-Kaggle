@@ -15,16 +15,16 @@ class SpatialRegressionLoss(nn.Module):
         elif norm == 2:
             self.loss_fn = F.mse_loss
         else:
-            raise ValueError(f'Expected norm 1 or 2, but got norm={norm}')
+            raise ValueError(f"Expected norm 1 or 2, but got norm={norm}")
 
     def forward(self, prediction, target, n_present=3):
-        assert len(prediction.shape) == 5, 'Must be a 5D tensor'
+        assert len(prediction.shape) == 5, "Must be a 5D tensor"
         # ignore_index is the same across all channels
         mask = target[:, :, :1] != self.ignore_index
         if mask.sum() == 0:
             return prediction.new_zeros(1)[0].float()
 
-        loss = self.loss_fn(prediction, target, reduction='none')
+        loss = self.loss_fn(prediction, target, reduction="none")
 
         # Sum channel dimension
         loss = torch.sum(loss, dim=-3, keepdim=True)
@@ -32,8 +32,16 @@ class SpatialRegressionLoss(nn.Module):
         seq_len = loss.shape[1]
         assert seq_len >= n_present
         future_len = seq_len - n_present
-        future_discounts = self.future_discount ** torch.arange(1, future_len+1, device=loss.device, dtype=loss.dtype)
-        discounts = torch.cat([torch.ones(n_present, device=loss.device, dtype=loss.dtype), future_discounts], dim=0)
+        future_discounts = self.future_discount ** torch.arange(
+            1, future_len + 1, device=loss.device, dtype=loss.dtype
+        )
+        discounts = torch.cat(
+            [
+                torch.ones(n_present, device=loss.device, dtype=loss.dtype),
+                future_discounts,
+            ],
+            dim=0,
+        )
         discounts = discounts.view(1, seq_len, 1, 1, 1)
         loss = loss * discounts
 
@@ -41,7 +49,14 @@ class SpatialRegressionLoss(nn.Module):
 
 
 class SegmentationLoss(nn.Module):
-    def __init__(self, class_weights, ignore_index=255, use_top_k=False, top_k_ratio=1.0, future_discount=1.0):
+    def __init__(
+        self,
+        class_weights,
+        ignore_index=255,
+        use_top_k=False,
+        top_k_ratio=1.0,
+        future_discount=1.0,
+    ):
         super().__init__()
         self.class_weights = class_weights
         self.ignore_index = ignore_index
@@ -51,7 +66,9 @@ class SegmentationLoss(nn.Module):
 
     def forward(self, prediction, target, n_present=3):
         if target.shape[-3] != 1:
-            raise ValueError('segmentation label must be an index-label with channel dimension = 1.')
+            raise ValueError(
+                "segmentation label must be an index-label with channel dimension = 1."
+            )
         b, s, c, h, w = prediction.shape
 
         prediction = prediction.view(b * s, c, h, w)
@@ -60,7 +77,7 @@ class SegmentationLoss(nn.Module):
             prediction,
             target,
             ignore_index=self.ignore_index,
-            reduction='none',
+            reduction="none",
             weight=self.class_weights.to(target.device),
         )
 
@@ -68,8 +85,16 @@ class SegmentationLoss(nn.Module):
 
         assert s >= n_present
         future_len = s - n_present
-        future_discounts = self.future_discount ** torch.arange(1, future_len+1, device=loss.device, dtype=loss.dtype)
-        discounts = torch.cat([torch.ones(n_present, device=loss.device, dtype=loss.dtype), future_discounts], dim=0)
+        future_discounts = self.future_discount ** torch.arange(
+            1, future_len + 1, device=loss.device, dtype=loss.dtype
+        )
+        discounts = torch.cat(
+            [
+                torch.ones(n_present, device=loss.device, dtype=loss.dtype),
+                future_discounts,
+            ],
+            dim=0,
+        )
         discounts = discounts.view(1, s, 1, 1)
         loss = loss * discounts
 
@@ -82,8 +107,11 @@ class SegmentationLoss(nn.Module):
 
         return torch.mean(loss)
 
+
 class HDmapLoss(nn.Module):
-    def __init__(self, class_weights, training_weights, use_top_k, top_k_ratio, ignore_index=255):
+    def __init__(
+        self, class_weights, training_weights, use_top_k, top_k_ratio, ignore_index=255
+    ):
         super(HDmapLoss, self).__init__()
         self.class_weights = class_weights
         self.training_weights = training_weights
@@ -96,12 +124,12 @@ class HDmapLoss(nn.Module):
         for i in range(target.shape[-3]):
             cur_target = target[:, i]
             b, h, w = cur_target.shape
-            cur_prediction = prediction[:, 2*i:2*(i+1)]
+            cur_prediction = prediction[:, 2 * i : 2 * (i + 1)]
             cur_loss = F.cross_entropy(
                 cur_prediction,
                 cur_target,
                 ignore_index=self.ignore_index,
-                reduction='none',
+                reduction="none",
                 weight=self.class_weights[i].to(target.device),
             )
 
@@ -113,6 +141,7 @@ class HDmapLoss(nn.Module):
             loss += torch.mean(cur_loss) * self.training_weights[i]
         return loss
 
+
 class DepthLoss(nn.Module):
     def __init__(self, class_weights=None, ignore_index=255):
         super(DepthLoss, self).__init__()
@@ -122,14 +151,14 @@ class DepthLoss(nn.Module):
     def forward(self, prediction, target):
         b, s, n, d, h, w = prediction.shape
 
-        prediction = prediction.view(b*s*n, d, h, w)
-        target = target.view(b*s*n, h, w)
+        prediction = prediction.view(b * s * n, d, h, w)
+        target = target.view(b * s * n, h, w)
         loss = F.cross_entropy(
             prediction,
             target,
             ignore_index=self.ignore_index,
-            reduction='none',
-            weight=self.class_weights
+            reduction="none",
+            weight=self.class_weights,
         )
         return torch.mean(loss)
 
@@ -143,37 +172,50 @@ class ProbabilisticLoss(nn.Module):
         var_future = torch.exp(2 * future_log_sigma)
         var_present = torch.exp(2 * present_log_sigma)
         kl_div = (
-                present_log_sigma - future_log_sigma - 0.5 + (var_future + (future_mu - present_mu) ** 2) / (
-                2 * var_present)
+            present_log_sigma
+            - future_log_sigma
+            - 0.5
+            + (var_future + (future_mu - present_mu) ** 2) / (2 * var_present)
         )
 
         kl_loss = torch.mean(torch.sum(kl_div, dim=-1))
         return kl_loss
 
     def forward(self, output):
-        if self.method == 'GAUSSIAN':
-            present_mu = output['present_mu']
-            present_log_sigma = output['present_log_sigma']
-            future_mu = output['future_mu']
-            future_log_sigma = output['future_log_sigma']
+        if self.method == "GAUSSIAN":
+            present_mu = output["present_mu"]
+            present_log_sigma = output["present_log_sigma"]
+            future_mu = output["future_mu"]
+            future_log_sigma = output["future_log_sigma"]
 
-            kl_loss = self.kl_div(present_mu, present_log_sigma, future_mu, future_log_sigma)
-        elif self.method == 'MIXGAUSSIAN':
-            present_mu = output['present_mu']
-            present_log_sigma = output['present_log_sigma']
-            future_mu = output['future_mu']
-            future_log_sigma = output['future_log_sigma']
+            kl_loss = self.kl_div(
+                present_mu, present_log_sigma, future_mu, future_log_sigma
+            )
+        elif self.method == "MIXGAUSSIAN":
+            present_mu = output["present_mu"]
+            present_log_sigma = output["present_log_sigma"]
+            future_mu = output["future_mu"]
+            future_log_sigma = output["future_log_sigma"]
 
             kl_loss = 0
             for i in range(len(present_mu)):
-                kl_loss += self.kl_div(present_mu[i], present_log_sigma[i], future_mu[i], future_log_sigma[i])
-        elif self.method == 'BERNOULLI':
-            present_log_prob = output['present_log_prob']
-            future_log_prob = output['future_log_prob']
+                kl_loss += self.kl_div(
+                    present_mu[i],
+                    present_log_sigma[i],
+                    future_mu[i],
+                    future_log_sigma[i],
+                )
+        elif self.method == "BERNOULLI":
+            present_log_prob = output["present_log_prob"]
+            future_log_prob = output["future_log_prob"]
 
-            kl_loss = F.kl_div(present_log_prob, future_log_prob, reduction='batchmean', log_target=True)
+            kl_loss = F.kl_div(
+                present_log_prob,
+                future_log_prob,
+                reduction="batchmean",
+                log_target=True,
+            )
         else:
             raise NotImplementedError
-
 
         return kl_loss

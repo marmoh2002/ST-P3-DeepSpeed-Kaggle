@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from pyquaternion import Quaternion
 from nuscenes.utils.geometry_utils import transform_matrix
 
+
 def resize_and_crop_image(img, resize_dims, crop):
     # Bilinear resizing followed by cropping
     img = img.resize(resize_dims, resample=PIL.Image.BILINEAR)
@@ -13,7 +14,9 @@ def resize_and_crop_image(img, resize_dims, crop):
     return img
 
 
-def update_intrinsics(intrinsics, top_crop=0.0, left_crop=0.0, scale_width=1.0, scale_height=1.0):
+def update_intrinsics(
+    intrinsics, top_crop=0.0, left_crop=0.0, scale_width=1.0, scale_height=1.0
+):
     """
     Parameters
     ----------
@@ -52,39 +55,53 @@ def calculate_birds_eye_view_parameters(x_bounds, y_bounds, z_bounds):
         bev_dimension Bird's-eye view tensor spatial dimension
     """
     bev_resolution = torch.tensor([row[2] for row in [x_bounds, y_bounds, z_bounds]])
-    bev_start_position = torch.tensor([row[0] + row[2] / 2.0 for row in [x_bounds, y_bounds, z_bounds]])
-    bev_dimension = torch.tensor([(row[1] - row[0]) / row[2] for row in [x_bounds, y_bounds, z_bounds]],
-                                 dtype=torch.long)
+    bev_start_position = torch.tensor(
+        [row[0] + row[2] / 2.0 for row in [x_bounds, y_bounds, z_bounds]]
+    )
+    bev_dimension = torch.tensor(
+        [(row[1] - row[0]) / row[2] for row in [x_bounds, y_bounds, z_bounds]],
+        dtype=torch.long,
+    )
 
     return bev_resolution, bev_start_position, bev_dimension
 
 
 def convert_egopose_to_matrix_numpy(egopose):
     transformation_matrix = np.zeros((4, 4), dtype=np.float32)
-    rotation = Quaternion(egopose['rotation']).rotation_matrix
-    translation = np.array(egopose['translation'])
+    rotation = Quaternion(egopose["rotation"]).rotation_matrix
+    translation = np.array(egopose["translation"])
     transformation_matrix[:3, :3] = rotation
     transformation_matrix[:3, 3] = translation
     transformation_matrix[3, 3] = 1.0
     return transformation_matrix
 
+
 def get_global_pose(rec, nusc, inverse=False):
-    lidar_sample_data = nusc.get('sample_data', rec['data']['LIDAR_TOP'])
+    lidar_sample_data = nusc.get("sample_data", rec["data"]["LIDAR_TOP"])
 
     sd_ep = nusc.get("ego_pose", lidar_sample_data["ego_pose_token"])
     sd_cs = nusc.get("calibrated_sensor", lidar_sample_data["calibrated_sensor_token"])
     if inverse is False:
-        global_from_ego = transform_matrix(sd_ep["translation"], Quaternion(sd_ep["rotation"]), inverse=False)
-        ego_from_sensor = transform_matrix(sd_cs["translation"], Quaternion(sd_cs["rotation"]), inverse=False)
+        global_from_ego = transform_matrix(
+            sd_ep["translation"], Quaternion(sd_ep["rotation"]), inverse=False
+        )
+        ego_from_sensor = transform_matrix(
+            sd_cs["translation"], Quaternion(sd_cs["rotation"]), inverse=False
+        )
         pose = global_from_ego.dot(ego_from_sensor)
     else:
-        sensor_from_ego = transform_matrix(sd_cs["translation"], Quaternion(sd_cs["rotation"]), inverse=True)
-        ego_from_global = transform_matrix(sd_ep["translation"], Quaternion(sd_ep["rotation"]), inverse=True)
+        sensor_from_ego = transform_matrix(
+            sd_cs["translation"], Quaternion(sd_cs["rotation"]), inverse=True
+        )
+        ego_from_global = transform_matrix(
+            sd_ep["translation"], Quaternion(sd_ep["rotation"]), inverse=True
+        )
         pose = sensor_from_ego.dot(ego_from_global)
     return pose
 
+
 def invert_matrix_egopose_numpy(egopose):
-    """ Compute the inverse transformation of a 4x4 egopose numpy matrix."""
+    """Compute the inverse transformation of a 4x4 egopose numpy matrix."""
     inverse_matrix = np.zeros((4, 4), dtype=np.float32)
     rotation = egopose[:3, :3]
     translation = egopose[:3, 3]
@@ -138,17 +155,23 @@ def euler2mat(angle: torch.Tensor):
 
     zeros = torch.zeros_like(z)
     ones = torch.ones_like(z)
-    zmat = torch.stack([cosz, -sinz, zeros, sinz, cosz, zeros, zeros, zeros, ones], dim=1).view(-1, 3, 3)
+    zmat = torch.stack(
+        [cosz, -sinz, zeros, sinz, cosz, zeros, zeros, zeros, ones], dim=1
+    ).view(-1, 3, 3)
 
     cosy = torch.cos(y)
     siny = torch.sin(y)
 
-    ymat = torch.stack([cosy, zeros, siny, zeros, ones, zeros, -siny, zeros, cosy], dim=1).view(-1, 3, 3)
+    ymat = torch.stack(
+        [cosy, zeros, siny, zeros, ones, zeros, -siny, zeros, cosy], dim=1
+    ).view(-1, 3, 3)
 
     cosx = torch.cos(x)
     sinx = torch.sin(x)
 
-    xmat = torch.stack([ones, zeros, zeros, zeros, cosx, -sinx, zeros, sinx, cosx], dim=1).view(-1, 3, 3)
+    xmat = torch.stack(
+        [ones, zeros, zeros, zeros, cosx, -sinx, zeros, sinx, cosx], dim=1
+    ).view(-1, 3, 3)
 
     rot_mat = xmat.bmm(ymat).bmm(zmat)
     rot_mat = rot_mat.view(*shape[:-1], 3, 3)
@@ -167,7 +190,9 @@ def pose_vec2mat(vec: torch.Tensor):
     rot = vec[..., 3:].contiguous()  # [...x3]
     rot_mat = euler2mat(rot)  # [...,3,3]
     transform_mat = torch.cat([rot_mat, translation], dim=-1)  # [...,3,4]
-    transform_mat = torch.nn.functional.pad(transform_mat, [0, 0, 0, 1], value=0)  # [...,4,4]
+    transform_mat = torch.nn.functional.pad(
+        transform_mat, [0, 0, 0, 1], value=0
+    )  # [...,4,4]
     transform_mat[..., 3, 3] = 1.0
     return transform_mat
 
@@ -182,26 +207,31 @@ def invert_pose_matrix(x):
     -------
         out: [B, 4, 4] batch of inverse pose matrices
     """
-    assert len(x.shape) == 3 and x.shape[1:] == (4, 4), 'Only works for batch of pose matrices.'
+    assert len(x.shape) == 3 and x.shape[1:] == (
+        4,
+        4,
+    ), "Only works for batch of pose matrices."
 
     transposed_rotation = torch.transpose(x[:, :3, :3], 1, 2)
     translation = x[:, :3, 3:]
 
-    inverse_mat = torch.cat([transposed_rotation, -torch.bmm(transposed_rotation, translation)], dim=-1) # [B,3,4]
+    inverse_mat = torch.cat(
+        [transposed_rotation, -torch.bmm(transposed_rotation, translation)], dim=-1
+    )  # [B,3,4]
     inverse_mat = torch.nn.functional.pad(inverse_mat, [0, 0, 0, 1], value=0)  # [B,4,4]
     inverse_mat[..., 3, 3] = 1.0
     return inverse_mat
 
 
-def warp_features(x, flow, mode='nearest', spatial_extent=None):
-    """ Applies a rotation and translation to feature map x.
-        Args:
-            x: (b, c, h, w) feature map
-            flow: (b, 6) 6DoF vector (only uses the xy poriton)
-            mode: use 'nearest' when dealing with categorical inputs
-        Returns:
-            in plane transformed feature map
-        """
+def warp_features(x, flow, mode="nearest", spatial_extent=None):
+    """Applies a rotation and translation to feature map x.
+    Args:
+        x: (b, c, h, w) feature map
+        flow: (b, 6) 6DoF vector (only uses the xy poriton)
+        mode: use 'nearest' when dealing with categorical inputs
+    Returns:
+        in plane transformed feature map
+    """
     if flow is None:
         return x
     b, c, h, w = x.shape
@@ -225,21 +255,34 @@ def warp_features(x, flow, mode='nearest', spatial_extent=None):
     # translation_pos_0 -> positive value makes the image move to the left
     # translation_pos_1 -> positive value makes the image move to the top
     # Angle -> positive value in rad makes the image move in the trigonometric way
-    transformation = torch.stack([cos_theta, -sin_theta, translation[:, 1],
-                                  sin_theta, cos_theta, translation[:, 0]], dim=-1).view(b, 2, 3)
+    transformation = torch.stack(
+        [
+            cos_theta,
+            -sin_theta,
+            translation[:, 1],
+            sin_theta,
+            cos_theta,
+            translation[:, 0],
+        ],
+        dim=-1,
+    ).view(b, 2, 3)
 
     # Note that a rotation will preserve distances only if height = width. Otherwise there's
     # resizing going on. e.g. rotation of pi/2 of a 100x200 image will make what's in the center of the image
     # elongated.
-    grid = torch.nn.functional.affine_grid(transformation, size=x.shape, align_corners=False)
+    grid = torch.nn.functional.affine_grid(
+        transformation, size=x.shape, align_corners=False
+    )
     grid = grid.to(dtype=x.dtype)
-    warped_x = torch.nn.functional.grid_sample(x, grid, mode=mode, padding_mode='zeros', align_corners=False)
+    warped_x = torch.nn.functional.grid_sample(
+        x, grid, mode=mode, padding_mode="zeros", align_corners=False
+    )
 
     return warped_x
 
 
-def cumulative_warp_features(x, flow, mode='nearest', spatial_extent=None):
-    """ Warps a sequence of feature maps by accumulating incremental 2d flow.
+def cumulative_warp_features(x, flow, mode="nearest", spatial_extent=None):
+    """Warps a sequence of feature maps by accumulating incremental 2d flow.
 
     x[:, -1] remains unchanged
     x[:, -2] is warped using flow[:, -2]
@@ -262,15 +305,22 @@ def cumulative_warp_features(x, flow, mode='nearest', spatial_extent=None):
     out = [x[:, -1]]
     cum_flow = flow[:, -2]
     for t in reversed(range(sequence_length - 1)):
-        out.append(warp_features(x[:, t], mat2pose_vec(cum_flow), mode=mode, spatial_extent=spatial_extent))
+        out.append(
+            warp_features(
+                x[:, t],
+                mat2pose_vec(cum_flow),
+                mode=mode,
+                spatial_extent=spatial_extent,
+            )
+        )
         # @ is the equivalent of torch.bmm
         cum_flow = flow[:, t - 1] @ cum_flow
 
     return torch.stack(out[::-1], 1)
 
 
-def cumulative_warp_features_reverse(x, flow, mode='nearest', spatial_extent=None):
-    """ Warps a sequence of feature maps by accumulating incremental 2d flow.
+def cumulative_warp_features_reverse(x, flow, mode="nearest", spatial_extent=None):
+    """Warps a sequence of feature maps by accumulating incremental 2d flow.
 
     x[:, 0] remains unchanged
     x[:, 1] is warped using flow[:, 0].inverse()
@@ -285,19 +335,24 @@ def cumulative_warp_features_reverse(x, flow, mode='nearest', spatial_extent=Non
     """
     flow = pose_vec2mat(flow)
 
-    out = [x[:,0]]
-    
+    out = [x[:, 0]]
+
     for i in range(1, x.shape[1]):
-        if i==1:
+        if i == 1:
             cum_flow = invert_pose_matrix(flow[:, 0])
         else:
-            cum_flow = cum_flow @ invert_pose_matrix(flow[:,i-1])
-        out.append( warp_features(x[:,i], mat2pose_vec(cum_flow), mode, spatial_extent=spatial_extent))
+            cum_flow = cum_flow @ invert_pose_matrix(flow[:, i - 1])
+        out.append(
+            warp_features(
+                x[:, i], mat2pose_vec(cum_flow), mode, spatial_extent=spatial_extent
+            )
+        )
     return torch.stack(out, 1)
 
 
 class VoxelsSumming(torch.autograd.Function):
     """Adapted from https://github.com/nv-tlabs/lift-splat-shoot/blob/master/src/tools.py#L193"""
+
     @staticmethod
     def forward(ctx, x, geometry, ranks):
         """The features `x` and `geometry` are ranked by voxel positions."""
