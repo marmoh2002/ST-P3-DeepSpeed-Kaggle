@@ -18,9 +18,9 @@ We are limited to a batch size of 1 and to using efficientnet-b0 rather than eff
 
 ## Get Started
 ### Kaggle Notebook
-```
-[Kaggle Notebook: st-p3-deepspeed](https://www.kaggle.com/code/mariaamm/st-p3-deepspeed)
-```
+
+[Kaggle Notebook](https://www.kaggle.com/code/mariaamm/st-p3-deepspeed)
+
 ### Kaggle Datasets
 You can find the Nuscenes TrainVal Dataset uploaded as Kaggle Datasets for easier use:
 
